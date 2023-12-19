@@ -6,14 +6,15 @@ import feature_extraction
 from scipy.signal import detrend
 
 def prepare_labels_events(labels_df, labels=None):
-    print(labels)
     if labels:
         labels_df = labels_df[['Timestamp','Epochs'] + labels]
         labels_events = np.full(len(labels_df), 2, dtype=int)
         labels_events[labels_df[labels[0]] == 1] = 0  # Assign 0 when labels[0] is 1
         labels_events[labels_df[labels[1]] == 1] = 1  # Assign 1 when labels[1] is 1
-        labels_df = labels_df[labels_events != 2]
-        time_events = labels_df['Timestamp'].values
+        time_events = labels_df['Timestamp'].values[labels_events != 2]
+        labels_events = labels_events[labels_events != 2]
+        print("labels_events.shape:", labels_events.shape)
+        print("time_events.shape:", time_events.shape)
         events = np.column_stack((time_events, np.full(len(time_events), 1, dtype=int), labels_events))
         return [labels_events, events]
     else:
