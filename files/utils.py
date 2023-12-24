@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import mne
 from scipy.io import loadmat
 from scipy.signal import welch
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, jaccard_score
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import detrend
@@ -64,15 +64,20 @@ def process_eeg_events(labels, crop_start, crop_end, sampling_freq):
 
     
 def evaluate_model(model, X_test, y_test):
+    print("X_test.shape:", X_test.shape)
+    print("X_test unique:", np.unique(X_test))
+    print("y_test.shape:", y_test.shape)
+    print("y_test unique:", np.unique(y_test))
+    
     # Generate predictions
     y_pred_prob = model.predict(X_test)
     y_pred = np.round(y_pred_prob).astype(int)  # Convert probabilities to binary predictions
 
     # Calculate metrics
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
+    accuracy = jaccard_score(y_test, y_pred, average='macro')
+    precision = precision_score(y_test, y_pred, average='macro')
+    recall = recall_score(y_test, y_pred, average='macro')
+    f1 = f1_score(y_test, y_pred, average='macro')
 
     # Print metrics
     print(f"Accuracy: {accuracy:.2f}")
@@ -81,12 +86,20 @@ def evaluate_model(model, X_test, y_test):
     print(f"F1 Score: {f1:.2f}")
 
     # Confusion matrix
-    cm = confusion_matrix(y_test, y_pred)
-    sns.heatmap(cm, annot=True, fmt="d")
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.show()
+    def display_cm(y_test, y_pred, title="Confusion Matrix"):
+        cm = confusion_matrix(y_test, y_pred)
+        sns.heatmap(cm, annot=True, fmt="d")
+        plt.title(title)
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.show()
+
+    if len(y_test.shape) == 1:
+        display_cm(y_test, y_pred)
+    else:
+        for column_i in range(y_test.shape[1]):
+            display_cm(y_test[:, column_i], y_pred[:, column_i], title=f"Label{column_i} Confusion matrix")
+    
     return { "accuracy": accuracy,
         "precision": precision,
         "recall": recall,

@@ -5,23 +5,43 @@ import utils
 import feature_extraction
 from scipy.signal import detrend
 
-def prepare_labels_events(labels_df, labels=None):
-    if labels:
-        labels_df = labels_df[['Timestamp','Epochs'] + labels]
-        labels_events = np.full(len(labels_df), 2, dtype=int)
-        labels_events[labels_df[labels[0]] == 1] = 0  # Assign 0 when labels[0] is 1
-        labels_events[labels_df[labels[1]] == 1] = 1  # Assign 1 when labels[1] is 1
-        time_events = labels_df['Timestamp'].values[labels_events != 2]
-        labels_events = labels_events[labels_events != 2]
-        print("labels_events.shape:", labels_events.shape)
-        print("time_events.shape:", time_events.shape)
-        events = np.column_stack((time_events, np.full(len(time_events), 1, dtype=int), labels_events))
-        return [labels_events, events]
-    else:
+def prepare_full_recording_labels_events(labels_df, labels):
+    """
+    Creates an mne like ndarray event.
+
+    ### Description:
+    The event array contains the timestamps where the (one hot encoded) 0label or 1label is set to one.  
+    In addition, the event contains the timestamps where the 0label and 1label are set to 0 in which case the event value is set to 2.\n
+    """
+    labels_df = labels_df[['Timestamp','Epochs'] + labels]
+    map_df_labels_to_event_labels = lambda row: {(1, 0): 1, (0, 1): 1, (0, 0): 2}[(row[labels[0]], row[labels[1]])]
+    labels_events = labels_df[labels].apply(map_df_labels_to_event_labels, axis=1).to_numpy(int)
+    print("event_labels_series.shape:", labels_events.shape)
+    print("np.unique(event_labels_series, return_counts=True):", np.unique(labels_events, return_counts=True))
+    time_events = labels_df['Timestamp']
+    events = np.column_stack((time_events, np.ones(len(time_events), dtype=int), labels_events))
+    return labels_df[labels].to_numpy(int) , events
+
+def prepare_labels_events(labels_df, labels):
+    """
+    ### Description:
+    Creates an mne like ndarray event.  
+    The event array contains only the timestamps where the (one hot encoded) 0 or 1 label is set to one.  
+    """
+    if not labels:
         raise ValueError("Choose a label to include in the analysis")
+
+    labels_df = labels_df[['Timestamp','Epochs'] + labels]
+    labels_events = np.full(len(labels_df), 2, dtype=int)
+    labels_events[labels_df[labels[0]] == 1] = 0  # Assign 0 when labels[0] is 1
+    labels_events[labels_df[labels[1]] == 1] = 1  # Assign 1 when labels[1] is 1
+    time_events = labels_df['Timestamp'].values[labels_events != 2]
+    labels_events = labels_events[labels_events != 2]
+    events = np.column_stack((time_events, np.full(len(time_events), 1, dtype=int), labels_events))
+    return [labels_events, events]
     
 
-def prepare_data(filepath_raw, filepath_labels, labels=None):
+def prepare_data(filepath_raw, filepath_labels, labels, include_entire_recording=False):
     # Loading raw EEG data and creating Raw object
     raw, raw_data, labels_df = utils.load_data(filepath_raw, filepath_labels)
 
@@ -35,7 +55,11 @@ def prepare_data(filepath_raw, filepath_labels, labels=None):
     # labels_df = process_eeg_events(labels_df, start_crop, end_crop, raw.info['sfreq'])
 
     raw_data = raw.get_data()
-    labels_events, events = prepare_labels_events(labels_df, labels)
+    if include_entire_recording:
+        labels_events, events = prepare_full_recording_labels_events(labels_df, labels)
+    else:
+        print(labels)
+        labels_events, events = prepare_labels_events(labels_df, labels)
 
     #Creating epochs around the events
     epochs = mne.Epochs(raw,
@@ -47,13 +71,13 @@ def prepare_data(filepath_raw, filepath_labels, labels=None):
         
     return {'Epochs': epochs, 'Labels': labels_events}
 
-def processed_data(raw_filepaths, label_filepaths, labels, fmin, fmax):
+def processed_data(raw_filepaths, label_filepaths, labels, fmin, fmax, include_entire_recording=False):
     all_epochs = []
     all_labels = []
 
     # Loop through each file path, prepare data, and collect epochs and labels
     for raw_filepath, label_filepath in zip(raw_filepaths, label_filepaths):
-        data = prepare_data(raw_filepath, label_filepath, labels)
+        data = prepare_data(raw_filepath, label_filepath, labels, include_entire_recording)
         all_epochs.append(data['Epochs'])
         all_labels.append(data['Labels'])
 

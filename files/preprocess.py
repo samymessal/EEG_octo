@@ -122,4 +122,91 @@ def plot_raw_and_psd(eeg_signal, axes, row, duration=200, label="VDM component",
     freqs, psd = signal.welch(eeg_signal, 250)
     axes[row, 1].plot(freqs, psd)
     axes[row, 1].set_title(f"{spectrum_label} {row + 1}")
+
+import tensorflow as tf
+from tensorflow.keras import backend as K
+
+def weighted_binary_crossentropy(y_true, y_pred, weights):
+    """
+    Custom weighted binary cross-entropy loss function.
+
+    Parameters:
+    y_true: True labels
+    y_pred: Predicted labels/probabilities
+    weights: 2D array of shape (2, n_labels) containing weights
+             Row 0 contains weights for false negatives,
+             Row 1 contains weights for false positives.
+
+    Returns:
+    Weighted binary cross-entropy loss.
+    """
+    # Convert weights to a TensorFlow tensor and ensure float32 data type
+    weights = tf.cast(weights, dtype=tf.float32)
+
+    # Ensure y_true and y_pred are of float32 type
+    y_true = tf.cast(y_true, dtype=tf.float32)
+    y_pred = tf.cast(y_pred, dtype=tf.float32)
+
+
+    y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
+
+    # Calculate Binary Cross Entropy
+    bce = -y_true * K.log(y_pred) - (1 - y_true) * K.log(1 - y_pred)
+    print("bce:", bce.values)
+    # Prepare to apply weights
+    def apply_weights(args):
+        y_true_slice, bce_slice = args[0], args[1]
+        return bce_slice * tf.gather(weights, tf.cast(y_true_slice, tf.int32), axis=0)
+
+    # Apply weights using tf.map_fn
+    weighted_bce = tf.map_fn(apply_weights, (y_true, bce), dtype=tf.float32)
+    print("weighted_bce:", weighted_bce.values)
+
+    # Return mean loss
+    return K.mean(weighted_bce, axis=-1)
+
+def compute_multi_label_loss_weights(labels):
+    """
+    Compute the weights for each class in each label using the formula:
+    n_samples / (n_classes * np.bincount(y))
+
+    Parameters:
+    labels: numpy array of shape (n_samples, n_labels)
+            Binary labels for each sample.
+
+    Returns:
+    weights: numpy array of shape (2, n_labels)
+             Row 0 contains weights for class 0,
+             Row 1 contains weights for class 1.
+    """
+    n_samples, n_labels = labels.shape
+    n_classes = 2
+    weights = np.zeros((2, n_labels), dtype=float)
+
+    for i in range(n_labels):
+        # Count occurrences of each class in the current label
+        class_count = np.bincount(labels[:, i], minlength=n_classes)
+        
+        # Compute weights inversely proportional to class frequencies
+        class_weights = n_samples / (n_classes * class_count + 1e-8)  # Adding a small value to avoid division by zero
+        
+        # Assign weights
+        weights[:, i] = class_weights
+
+    print(weights)
+    return weights
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
