@@ -4,6 +4,7 @@ import numpy as np
 import utils
 import feature_extraction
 from scipy.signal import detrend
+from typing import List
 
 def prepare_full_recording_labels_events(labels_df, labels):
     """
@@ -14,12 +15,13 @@ def prepare_full_recording_labels_events(labels_df, labels):
     In addition, the event contains the timestamps where the 0label and 1label are set to 0 in which case the event value is set to 2.\n
     """
     labels_df = labels_df[['Timestamp','Epochs'] + labels]
-    map_df_labels_to_event_labels = lambda row: {(1, 0): 1, (0, 1): 1, (0, 0): 2}[(row[labels[0]], row[labels[1]])]
-    labels_events = labels_df[labels].apply(map_df_labels_to_event_labels, axis=1).to_numpy(int)
-    print("event_labels_series.shape:", labels_events.shape)
-    print("np.unique(event_labels_series, return_counts=True):", np.unique(labels_events, return_counts=True))
+    #map_df_labels_to_event_labels = lambda row: {(1, 0): 1, (0, 1): 1, (0, 0): 2}[(row[labels[0]], row[labels[1]])]
+    #labels_events = np.arange(len(labels_df.index)) % 2
+    #labels_events = np.(len(labels_df.index)) % 2
+    #print(labels_events)
+    #print("event_labels_series.shape:", labels_events.shape)
     time_events = labels_df['Timestamp']
-    events = np.column_stack((time_events, np.ones(len(time_events), dtype=int), labels_events))
+    events = np.column_stack((time_events, np.ones(len(time_events), dtype=int), np.ones(len(time_events), dtype=int)))
     return labels_df[labels].to_numpy(int) , events
 
 def prepare_labels_events(labels_df, labels):
@@ -36,10 +38,51 @@ def prepare_labels_events(labels_df, labels):
     labels_events[labels_df[labels[0]] == 1] = 0  # Assign 0 when labels[0] is 1
     labels_events[labels_df[labels[1]] == 1] = 1  # Assign 1 when labels[1] is 1
     time_events = labels_df['Timestamp'].values[labels_events != 2]
-    labels_events = labels_events[labels_events != 2]
     events = np.column_stack((time_events, np.full(len(time_events), 1, dtype=int), labels_events))
     return [labels_events, events]
-    
+
+def mk_epochs(raw: mne.io.Raw, df: pd.DataFrame, tmin, epoch_duration) -> mne.Epochs:
+    """
+    Create MNE epochs from a DataFrame with binary labels and a Raw object.
+
+    Parameters:
+    raw (mne.io.Raw): The MNE Raw object containing EEG data.
+    df (pd.DataFrame): DataFrame with timestamps and binary labels.
+                       Assumes first column is 'timestamp' and label columns start at index 2.
+    epoch_duration (float): Duration of each epoch in seconds.
+
+    Returns:
+    mne.Epochs: The epochs created from the Raw data based on DataFrame labels.
+    """
+
+    # Extract Label Columns (Assuming labels start from the 3rd column, index 2)
+    label_columns = df.columns[2:]  # Adjust if your DataFrame structure is different
+
+    # Prepare arrays for annotations
+    onsets = []
+    durations = []
+    descriptions = []
+
+    # Create Annotations
+    for _, row in df.iterrows():
+        label_values = tuple(row[label_columns])
+        description = '_'.join(map(str, label_values))  # Unique description for each label combination
+        onsets.append(row['timestamp'])
+        durations.append(epoch_duration)
+        descriptions.append(description)
+
+    # Create an mne.Annotations object
+    annotations = mne.Annotations(onset=onsets, duration=durations, description=descriptions)
+
+    # Attach Annotations to Raw Object
+    raw.set_annotations(annotations)
+
+    # Create Epochs
+    events, event_id = mne.events_from_annotations(raw)
+    tmin, tmax = 0, epoch_duration  # Define epoch window based on duration
+    epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=None)
+
+    return epochs
 
 def prepare_data(filepath_raw, filepath_labels, labels, include_entire_recording=False):
     # Loading raw EEG data and creating Raw object
@@ -56,20 +99,18 @@ def prepare_data(filepath_raw, filepath_labels, labels, include_entire_recording
 
     raw_data = raw.get_data()
     if include_entire_recording:
-        labels_events, events = prepare_full_recording_labels_events(labels_df, labels)
+        epochs = mk_epochs(raw_data, labels_df, 0, 2.5)
     else:
-        print(labels)
         labels_events, events = prepare_labels_events(labels_df, labels)
-
-    #Creating epochs around the events
-    epochs = mne.Epochs(raw,
-                        events, 
-                        tmin=-0.5, tmax=2,
-                        baseline=None, preload=True)
+        #Creating epochs around the events
+        epochs = mne.Epochs(raw,
+                            events, 
+                            tmin=-0.5, tmax=2,
+                            baseline=None, preload=True)
     
     epochs = utils.normalize_epochs(epochs)
-        
     return {'Epochs': epochs, 'Labels': labels_events}
+
 
 def processed_data(raw_filepaths, label_filepaths, labels, fmin, fmax, include_entire_recording=False):
     all_epochs = []
