@@ -193,7 +193,6 @@ def compute_multi_label_loss_weights(labels):
         # Assign weights
         weights[:, i] = class_weights
 
-    print(weights)
     return weights
 
 

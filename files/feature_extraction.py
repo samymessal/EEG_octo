@@ -54,6 +54,28 @@ def extract_cwt_features(epochs, fmin, fmax, wavelet='morl'):
 
     return features
 
+def extract_dwt_features(epochs, wavelet='db1', level=None):
+    eeg_data = epochs.get_data()
+    num_epochs, _, signal_length = eeg_data.shape
+    
+    # Initialize a list to store the features
+    features = []
+    
+    for epoch_idx in range(num_epochs):
+        signal = eeg_data[epoch_idx, 0, :]
+    
+        # Perform DWT
+        coeffs = pywt.wavedec(signal, wavelet, level=level)
+    
+        # Process coefficients (e.g., concatenating, averaging)
+        # Depending on your use case, you might want to do different kinds of processing here
+        processed_coeffs = np.concatenate(coeffs)
+    
+        features.append(processed_coeffs)
+    
+    return np.array(features)
+
+
 def combined_raw_features(epochs, features):
     raw_data = epochs.get_data()
     n_epochs, n_channels, n_times = raw_data.shape
@@ -75,16 +97,17 @@ def combined_raw_features(epochs, features):
     return combined_data
 
 def get_raw_feature_all(epochs, fmin, fmax):
-    combined_all = None
-    for subject in epochs:
-        psd = extract_psd_features(subject, fmin, fmax)
-        bd_power = extract_bp_feature(subject, (fmin, 13), (13, fmax))
-        cwt = extract_cwt_features(subject, fmin, fmax) 
-        combined = combined_raw_features(subject, [psd, bd_power])
-        combined = np.concatenate([combined, cwt], axis=1)
-        if combined_all is None:
-            combined_all = combined
-        else:
-            combined_all = np.concatenate([combined_all, combined])
-    return combined_all
+#    combined_all = None
+    
+#    for subject in epochs:
+#        psd = extract_psd_features(subject, fmin, fmax)
+        #bd_power = extract_bp_feature(subject, (fmin, 13), (13, fmax))
+        #cwt = extract_cwt_features(subject, fmin, fmax) 
+#        combined = combined_raw_features(subject, [psd])
+        #combined = np.concatenate([combined, cwt], axis=1)
+#        if combined_all is None:
+#            combined_all = combined
+#        else:
+#            combined_all = np.concatenate([combined_all, combined])
+    return epochs.get_data()
 

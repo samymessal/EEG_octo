@@ -41,22 +41,20 @@ def prepare_labels_events(labels_df, labels):
     events = np.column_stack((time_events, np.full(len(time_events), 1, dtype=int), labels_events))
     return [labels_events, events]
 
-def mk_epochs(raw: mne.io.Raw, df: pd.DataFrame, tmin, epoch_duration) -> mne.Epochs:
+def mk_epochs(raw: mne.io.Raw, labels_df: pd.DataFrame, labels, tmin, epoch_duration) -> mne.Epochs:
     """
     Create MNE epochs from a DataFrame with binary labels and a Raw object.
 
     Parameters:
     raw (mne.io.Raw): The MNE Raw object containing EEG data.
-    df (pd.DataFrame): DataFrame with timestamps and binary labels.
+    labels_df (pd.DataFrame): DataFrame with timestamps and binary labels.
                        Assumes first column is 'timestamp' and label columns start at index 2.
     epoch_duration (float): Duration of each epoch in seconds.
 
     Returns:
     mne.Epochs: The epochs created from the Raw data based on DataFrame labels.
     """
-
-    # Extract Label Columns (Assuming labels start from the 3rd column, index 2)
-    label_columns = df.columns[2:]  # Adjust if your DataFrame structure is different
+    labels_df = labels_df[labels + ["Timestamp"]]
 
     # Prepare arrays for annotations
     onsets = []
@@ -64,10 +62,10 @@ def mk_epochs(raw: mne.io.Raw, df: pd.DataFrame, tmin, epoch_duration) -> mne.Ep
     descriptions = []
 
     # Create Annotations
-    for _, row in df.iterrows():
-        label_values = tuple(row[label_columns])
+    for _, row in labels_df.iterrows():
+        label_values = tuple(row[labels])
         description = '_'.join(map(str, label_values))  # Unique description for each label combination
-        onsets.append(row['timestamp'])
+        onsets.append(row['Timestamp'] / raw.info["sfreq"])
         durations.append(epoch_duration)
         descriptions.append(description)
 
@@ -80,26 +78,29 @@ def mk_epochs(raw: mne.io.Raw, df: pd.DataFrame, tmin, epoch_duration) -> mne.Ep
     # Create Epochs
     events, event_id = mne.events_from_annotations(raw)
     tmin, tmax = 0, epoch_duration  # Define epoch window based on duration
-    epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=None)
+    epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=(0, 0))
 
-    return epochs
+    print("epcohs.get_data().shape:", epochs.get_data().shape)
+    print("raw_data.shape:", raw.get_data().shape)
+    print("len(labels_df.index):", len(labels_df.index))
+    
+    return labels_df[labels], epochs
 
 def prepare_data(filepath_raw, filepath_labels, labels, include_entire_recording=False):
     # Loading raw EEG data and creating Raw object
     raw, raw_data, labels_df = utils.load_data(filepath_raw, filepath_labels)
 
-    #Optional feature engineering
-
+    # Optional feature engineering
     # raw._data = detrend(raw.get_data())
     # raw._data = utils.vdm_raw(raw)
     # raw = raw.notch_filter(50)
-    # raw.filter(11, 15)
+    raw.filter(8, 16)
     # raw = raw.copy().crop(tmin=start_crop, tmax=end_crop)
     # labels_df = process_eeg_events(labels_df, start_crop, end_crop, raw.info['sfreq'])
 
     raw_data = raw.get_data()
     if include_entire_recording:
-        epochs = mk_epochs(raw_data, labels_df, 0, 2.5)
+        labels_events, epochs = mk_epochs(raw, labels_df, labels, 0, 2.5)
     else:
         labels_events, events = prepare_labels_events(labels_df, labels)
         #Creating epochs around the events
@@ -127,6 +128,6 @@ def processed_data(raw_filepaths, label_filepaths, labels, fmin, fmax, include_e
     combined_labels = np.concatenate(all_labels)
 
     # Extract features for all combined epochs
-    X = feature_extraction.get_raw_feature_all(all_epochs, fmin, fmax)
+    #X = feature_extraction.get_raw_feature_all(all_epochs, fmin, fmax)
 
-    return X, combined_labels
+    return combined_epochs.get_data(), combined_labels
