@@ -90,7 +90,7 @@ def dataset_from_files(
         window_size=None,
         band1=None,
         band2=None,
-        shuffle=True
+        shuffle=False
         ):
     """
     Loads and preprocesses the EEG recordings.
