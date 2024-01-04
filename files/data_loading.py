@@ -106,9 +106,10 @@ def dataset_from_files(
     ### Returns:
     Timeseries dataset keras obj
     """
+    print(recording_files)
     time_series = []
     for recording_file in recording_files:
-        recording_data = load_data(recording_file)
+        recording_data = load_eeg_data(recording_file)
         preprocessed_recording_data = preprocess_recording_data(recording_data, frequency_band=frequency_band)
         hypno_propas = hypnogram_propas(recording_data, sampling_freq=sampling_freq) if include_hypno_proba else ()
         band_psd_ratio = band_psd_ratio(window_size, band1, band2) if window_size is not None else ()
@@ -131,3 +132,24 @@ def dataset_from_files(
         concat_target_array = None
 
     return timeseries_dataset_from_array(concat_time_serie, concat_target_array, window_size, shuffle=shuffle)
+
+
+
+
+
+
+
+
+dataset = dataset_from_files(
+    ["./dataset/train_S002_night1_hackathon_raw.mat",
+    "./dataset/train_S003_night5_hackathon_raw.mat"
+    ],
+    ["./dataset/train_S002_labeled.csv",
+    "./dataset/train_S003_labeled.csv"
+    ],
+    target_label="SS1",
+    frequency_band=(8, 16),
+    window_size=2.5,
+    band1=(8, 13),
+    band2= (13, 16),
+)
