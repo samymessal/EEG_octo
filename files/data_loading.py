@@ -132,24 +132,3 @@ def dataset_from_files(
         concat_target_array = None
 
     return timeseries_dataset_from_array(concat_time_serie, concat_target_array, window_size, shuffle=shuffle)
-
-
-
-
-
-
-
-if __name__ == "__main__"
-    dataset = dataset_from_files(
-        ["./dataset/train_S002_night1_hackathon_raw.mat",
-        "./dataset/train_S003_night5_hackathon_raw.mat"
-        ],
-        ["./dataset/train_S002_labeled.csv",
-        "./dataset/train_S003_labeled.csv"
-        ],
-        target_label="SS1",
-        frequency_band=(8, 16),
-        window_size=2.5,
-        band1=(8, 13),
-        band2= (13, 16),
-    )
