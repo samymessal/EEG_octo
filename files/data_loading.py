@@ -112,8 +112,8 @@ def dataset_from_files(
         recording_data = load_eeg_data(recording_file)
         preprocessed_recording_data = preprocess_recording_data(recording_data, frequency_band=frequency_band)
         hypno_propas = hypnogram_propas(recording_data, sampling_freq=sampling_freq) if include_hypno_proba else ()
-        band_psd_ratio = band_psd_ratio(window_size, band1, band2) if window_size is not None else ()
-        time_serie = np.column_stack((preprocessed_recording_data, *hypno_propas, *band_psd_ratio))
+        psd_ratio = band_psd_ratio(window_size, band1, band2) if window_size is not None else ()
+        time_serie = np.column_stack((preprocessed_recording_data, *hypno_propas, *psd_ratio))
         time_series.append(time_serie)
     concat_time_serie = np.concatenate(time_serie)
 
